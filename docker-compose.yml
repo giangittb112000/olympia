@@ -1,0 +1,21 @@
+services:
+  # web:
+  #   build: .
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     - DATABASE_URL=mongodb://mongo:27017/olympia
+  #   depends_on:
+  #     - mongo
+  #   restart: always
+
+  mongo:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    restart: always
+
+volumes:
+  mongodb_data:
