@@ -397,6 +397,15 @@ export default function FinishLineMC({ finishLine }: FinishLineMCProps) {
           )}
         </AnimatePresence>
 
+        <ConfirmModal 
+          isOpen={confirmConfig.isOpen}
+          title={confirmConfig.title}
+          message={confirmConfig.message}
+          onConfirm={confirmConfig.onConfirm}
+          onCancel={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+          type={confirmConfig.type}
+        />
+
         {/* Compact Header */}
         <div className="flex justify-between items-center mb-3">
           <div className="flex items-center gap-3">
