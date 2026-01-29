@@ -374,7 +374,7 @@ export default function ObstaclesMC({ obstacle }: ObstaclesMCProps) {
                 <div className="h-[280px] grid grid-cols-1 lg:grid-cols-12 gap-6">
                     
                     {/* BOTTOM LEFT: ROW LIST (4 Cols) */}
-                    <div className="lg:col-span-4 flex flex-col gap-2 h-full overflow-y-auto pr-1">
+                    <div className="lg:col-span-6 flex flex-col gap-2 h-full overflow-y-auto pr-1">
                         <h3 className="text-slate-400 font-bold text-xs uppercase tracking-wider mb-1 px-1">Chọn Hàng Ngang</h3>
                         <div className="flex flex-col gap-2">
                              {[0, 1, 2, 3].map(idx => {
@@ -385,17 +385,16 @@ export default function ObstaclesMC({ obstacle }: ObstaclesMCProps) {
                                  const isCurrent = obstacle.currentRowIndex === idx;
 
                                  return (
-                                     <button 
+                                     <div 
                                          key={idx}
                                          onClick={() => (!isSolved && !isDismissed) && handleSelectRow(idx)}
-                                         disabled={isSolved || !!isDismissed}
                                          className={`
-                                             group p-2 rounded-xl border transition-all text-left relative overflow-hidden
+                                             group p-2 rounded-xl border transition-all text-left relative overflow-hidden flex flex-col gap-1
                                              ${(isSolved || isDismissed) 
                                                  ? 'bg-slate-900 border-slate-800 opacity-60 cursor-not-allowed' 
                                                  : (isCurrent 
-                                                     ? 'bg-amber-900/10 border-amber-500/50 hover:bg-amber-900/20' 
-                                                     : 'bg-transparent border-transparent hover:bg-slate-800 hover:border-slate-700')}
+                                                     ? 'bg-amber-900/10 border-amber-500/50 hover:bg-amber-900/20 cursor-pointer' 
+                                                     : 'bg-transparent border-transparent hover:bg-slate-800 hover:border-slate-700 cursor-pointer')}
                                          `}
                                      >
                                          <div className="flex items-center gap-2 mb-1">
@@ -413,6 +412,25 @@ export default function ObstaclesMC({ obstacle }: ObstaclesMCProps) {
                                                  <span className="ml-auto text-[10px] font-bold text-red-500 uppercase border border-red-900/30 px-2 rounded bg-red-900/10 flex items-center gap-1">
                                                      <EyeOff size={10} /> ĐÃ QUA
                                                  </span>
+                                             )}
+                                             
+                                             {!isSolved && !isDismissed && (
+                                                 <button
+                                                     onClick={(e) => {
+                                                         e.stopPropagation();
+                                                         setConfirmConfig({
+                                                             isOpen: true,
+                                                             title: 'Đánh dấu đã thi',
+                                                             message: `Xác nhận đánh dấu hàng ngang số ${idx + 1} là ĐÃ THI? (Sẽ bỏ qua hàng ngang này)`,
+                                                             onConfirm: () => socket?.emit('mc_obstacle_mark_row_finished', { rowIndex: idx }),
+                                                             type: 'warning'
+                                                         });
+                                                     }}
+                                                     className="ml-auto p-1.5 rounded-lg hover:bg-red-500/20 text-slate-600 hover:text-red-500 transition-colors z-20 relative group/btn"
+                                                     title="Đánh dấu đã thi (Bỏ qua)"
+                                                 >
+                                                     Đánh dấu đã thi
+                                                 </button>
                                              )}
                                          </div>
 
@@ -435,14 +453,14 @@ export default function ObstaclesMC({ obstacle }: ObstaclesMCProps) {
                                                  ))
                                              ) : <span className="text-[10px] text-slate-600 italic">No Data</span>}
                                          </div>
-                                     </button>
+                                     </div>
                                  );
                              })}
                         </div>
                     </div>
 
                     {/* BOTTOM RIGHT: ACTIVE QUESTION (8 Cols) */}
-                    <div className="lg:col-span-8 bg-slate-900 border border-slate-700 rounded-2xl p-6 relative overflow-hidden flex flex-col justify-between shadow-2xl">
+                    <div className="lg:col-span-6 bg-slate-900 border border-slate-700 rounded-2xl p-6 relative overflow-hidden flex flex-col justify-between shadow-2xl">
                          {/* Background Elements */}
                          <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/5 rounded-full blur-[100px] pointer-events-none -translate-y-1/2 translate-x-1/2" />
                          

@@ -2,7 +2,7 @@ import { Server, Socket } from 'socket.io';
 import GameManager from '../../game/GameManager';
 import ObstacleResource from '../../models/ObstacleResource';
 import Player from '../../models/Player';
-import { POINTS, TIMERS } from '../../game/GameConstants';
+import { POINTS, TIMERS, ObstacleState } from '../../game/GameConstants';
 
 let timerInterval: NodeJS.Timeout | null = null;
 
@@ -205,16 +205,7 @@ export const obstacleManager = (io: Server, socket: Socket) => {
          if (state.phase !== 'OBSTACLES' || currentRow < 0) return;
 
          try {
-             // Mark as SKIPPED in rowResults
-             // relying on rowResults[i] existence to mean "Played"
-             // and !rowContents[i] to mean "Hidden"
-             
              const newRowResults = [...(state.obstacle?.rowResults || [])];
-             // We need to ensure we don't break the array structure if it's sparse
-             // But usually it's array of objects.
-             // Let's just set the index.
-             // GameConstants defines it as { isSolved: boolean, answer: string }[]
-             // If we set answer to "SKIPPED", we can track it.
              newRowResults[currentRow] = { isSolved: false, answer: "SKIPPED" };
 
              GameManager.updateObstacleState({ 
@@ -232,6 +223,38 @@ export const obstacleManager = (io: Server, socket: Socket) => {
          } catch(e) {
              console.error("Error dismissing row:", e);
          }
+    });
+
+    // 4.7 MARK ROW FINISHED (Manual by Index)
+    socket.on('mc_obstacle_mark_row_finished', ({ rowIndex }: { rowIndex: number }) => {
+        const state = GameManager.getState();
+        if (state.phase !== 'OBSTACLES') return;
+        
+        try {
+            const newRowResults = [...(state.obstacle?.rowResults || [])];
+            newRowResults[rowIndex] = { isSolved: false, answer: "SKIPPED" };
+            
+            let update: Partial<ObstacleState> = { rowResults: newRowResults };
+            
+            // If this was the active row, reset to IDLE
+            if (state.obstacle?.currentRowIndex === rowIndex) {
+                update = {
+                    ...update,
+                    status: 'IDLE',
+                    currentRowIndex: -1,
+                    currentRowQuestion: undefined,
+                    currentRowLength: undefined,
+                    answers: {}, 
+                    grading: {}
+                };
+            }
+            
+            GameManager.updateObstacleState(update);
+            io.emit('gamestate_sync', GameManager.getState());
+            console.log(`[Obstacle] Manually marked row ${rowIndex} as FINISHED (SKIPPED).`);
+        } catch (e) {
+            console.error(e);
+        }
     });
 
     // 5. OPEN PIECE (Triggered by MC if at least one correct, or manually)
