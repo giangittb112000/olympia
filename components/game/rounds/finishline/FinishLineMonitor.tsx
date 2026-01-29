@@ -341,7 +341,7 @@ function FinishLineMonitorContent({ finishLine }: FinishLineMonitorProps) {
                     src={currentQ.mediaUrl}
                     autoPlay
                     muted={false}
-                    controls
+                    controls={false}
                     className="w-full h-full absolute inset-0"
                   />
                 )}
@@ -369,12 +369,12 @@ function FinishLineMonitorContent({ finishLine }: FinishLineMonitorProps) {
           {/* Right: Ranking + Buzzer + Answers */}
           <div className="col-span-4 flex flex-col gap-4 h-full pb-6 overflow-hidden">
             {/* Answer Display - Takes priority if active */}
-            <div className="shrink-0 flex flex-col z-10">
-                 <FinishLineAnswerDisplay 
-                    question={currentQ} 
-                    isRevealed={finishLine.timeLeft === 0} 
-                 />
-            </div>
+             <div className="shrink-0 flex flex-col z-10">
+                  <FinishLineAnswerDisplay 
+                     question={currentQ} 
+                     isRevealed={finishLine.timeLeft === 0 || !!currentQ.answer} 
+                  />
+             </div>
 
             <div className="flex-1 min-h-[150px]">
                <LiveRankingBoard players={players || []} compact />

@@ -1,4 +1,5 @@
 'use client';
+import { useState } from 'react';
 import { useSocketContext } from '@/components/providers/SocketProvider';
 import { usePlayers } from '@/hooks/usePlayers';
 import GameRoundContainer from '../../GameRoundContainer';
@@ -6,24 +7,39 @@ import MediaPlayer from './MediaPlayer';
 import { AccelerationState } from '@/server/game/GameConstants';
 import { Play, SkipForward, Check, X, RotateCcw, Trophy, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Toast, ToastType } from '@/components/ui/Toast';
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 
 interface AccelerationMCProps {
   acceleration: AccelerationState;
 }
 
-import { useState } from 'react';
-import { Toast, ToastType } from '@/components/ui/Toast';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
-
 export default function AccelerationMC({ acceleration }: AccelerationMCProps) {
   const { socket } = useSocketContext();
   const { players } = usePlayers();
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+  const [confirmConfig, setConfirmConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    type?: 'info' | 'warning' | 'danger' | 'success';
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+  });
 
   const handleStartRound = () => {
-    if (confirm('Bắt đầu vòng Tăng Tốc?')) {
-      socket?.emit('mc_acceleration_start_round');
-    }
+    setConfirmConfig({
+      isOpen: true,
+      title: 'Bắt đầu vòng thi',
+      message: 'Bạn có chắc chắn muốn bắt đầu vòng Tăng Tốc?',
+      onConfirm: () => socket?.emit('mc_acceleration_start_round'),
+      type: 'info'
+    });
   };
 
   const handleStartTimer = () => {
@@ -36,7 +52,7 @@ export default function AccelerationMC({ acceleration }: AccelerationMCProps) {
 
   const handleNext = () => {
     // Validate all graded
-    const ungraded = acceleration.answers.filter(a => a.isCorrect === undefined);
+    const ungraded = (acceleration.answers || []).filter((a: { isCorrect?: boolean }) => a.isCorrect === undefined);
     if (ungraded.length > 0) {
       setToast({ 
         message: `Bạn chưa chấm ${ungraded.length} đáp án. Vui lòng chấm hết trước khi next.`,
@@ -45,27 +61,56 @@ export default function AccelerationMC({ acceleration }: AccelerationMCProps) {
       return;
     }
 
-    if (confirm('Chuyển sang câu tiếp theo?')) {
-      socket?.emit('mc_acceleration_next_question');
-    }
+    setConfirmConfig({
+      isOpen: true,
+      title: 'Chuyển câu hỏi',
+      message: 'Xác nhận chuyển sang câu tiếp theo?',
+      onConfirm: () => socket?.emit('mc_acceleration_next_question'),
+      type: 'info'
+    });
   };
 
   const handleFinish = () => {
-    if (confirm('Kết thúc vòng Tăng Tốc?')) {
-      socket?.emit('mc_acceleration_finish_round');
-    }
+    setConfirmConfig({
+      isOpen: true,
+      title: 'Kết thúc vòng',
+      message: 'Bạn có chắc chắn muốn kết thúc vòng Tăng Tốc?',
+      onConfirm: () => socket?.emit('mc_acceleration_finish_round'),
+      type: 'success'
+    });
   };
 
   const handleReset = () => {
-    if (confirm('⚠️ Reset toàn bộ vòng Tăng Tốc? (Answers sẽ bị xóa)')) {
-      socket?.emit('mc_acceleration_reset');
-    }
+    setConfirmConfig({
+      isOpen: true,
+      title: 'Cảnh báo Reset',
+      message: '⚠️ Reset toàn bộ vòng Tăng Tốc? (Tất cả đáp án đã nộp sẽ bị xóa)',
+      onConfirm: () => socket?.emit('mc_acceleration_reset'),
+      type: 'warning'
+    });
   };
 
   // Idle state
   if (!acceleration.questionNumber) {
     return (
       <GameRoundContainer>
+        <AnimatePresence>
+          {toast && (
+            <Toast
+              message={toast.message}
+              type={toast.type}
+              onClose={() => setToast(null)}
+            />
+          )}
+        </AnimatePresence>
+        <ConfirmModal 
+          isOpen={confirmConfig.isOpen}
+          title={confirmConfig.title}
+          message={confirmConfig.message}
+          onConfirm={confirmConfig.onConfirm}
+          onCancel={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+          type={confirmConfig.type}
+        />
         <div className="absolute top-6 left-6">
           <button
             onClick={() => socket?.emit('mc_set_phase', 'IDLE')}
@@ -107,14 +152,27 @@ export default function AccelerationMC({ acceleration }: AccelerationMCProps) {
         )}
       </AnimatePresence>
 
+      <ConfirmModal 
+        isOpen={confirmConfig.isOpen}
+        title={confirmConfig.title}
+        message={confirmConfig.message}
+        onConfirm={confirmConfig.onConfirm}
+        onCancel={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+        type={confirmConfig.type}
+      />
+
       {/* Header */}
       <div className="flex justify-between items-center mb-4">
         <div className="flex items-center gap-4">
           <button
             onClick={() => {
-              if (confirm('Quay lại Dashboard và tạm dừng vòng thi?')) {
-                socket?.emit('mc_set_phase', 'IDLE');
-              }
+              setConfirmConfig({
+                isOpen: true,
+                title: 'Quay lại Dashboard',
+                message: 'Quay lại màn hình chọn vòng thi?',
+                onConfirm: () => socket?.emit('mc_set_phase', 'IDLE'),
+                type: 'info'
+              });
             }}
             className="p-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg transition-colors border border-slate-700"
             title="Quay lại Dashboard"

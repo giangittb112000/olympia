@@ -1,6 +1,8 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { Video, Image as ImageIcon, Save, Loader2 } from 'lucide-react';
+import { Toast, ToastType } from '@/components/ui/Toast';
+import { AnimatePresence } from 'framer-motion';
 
 interface Question {
   questionNumber: 1 | 2 | 3 | 4;
@@ -23,6 +25,7 @@ export default function AccelerationResourceForm() {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [resourceId, setResourceId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
 
   // Load existing data on mount
   useEffect(() => {
@@ -67,7 +70,7 @@ export default function AccelerationResourceForm() {
       setQuestions(newQuestions);
     } catch (error) {
       console.error('Upload failed:', error);
-      alert('Upload thất bại. Vui lòng thử lại.');
+      setToast({ message: 'Upload thất bại. Vui lòng thử lại.', type: 'error' });
     } finally {
       setUploading(false);
     }
@@ -83,7 +86,10 @@ export default function AccelerationResourceForm() {
     // Validate
     for (const q of questions) {
       if (!q.mediaUrl || !q.questionText.trim()) {
-        alert(`Câu hỏi ${q.questionNumber}: Vui lòng upload media và nhập nội dung câu hỏi.`);
+        setToast({ 
+          message: `Câu hỏi ${q.questionNumber}: Vui lòng upload media và nhập nội dung câu hỏi.`, 
+          type: 'error' 
+        });
         return;
       }
     }
@@ -108,10 +114,10 @@ export default function AccelerationResourceForm() {
         setResourceId(data.resourceId);
       }
       
-      alert(`✅ Đã lưu Resource thành công!`);
+      setToast({ message: `✅ Đã lưu Resource thành công!`, type: 'success' });
     } catch (error) {
       console.error('Save failed:', error);
-      alert('Lưu thất bại. Vui lòng thử lại.');
+      setToast({ message: 'Lưu thất bại. Vui lòng thử lại.', type: 'error' });
     } finally {
       setSaving(false);
     }
@@ -130,6 +136,15 @@ export default function AccelerationResourceForm() {
 
   return (
     <div className="p-6 space-y-6 bg-slate-900 rounded-2xl">
+      <AnimatePresence>
+        {toast && (
+          <Toast
+            message={toast.message}
+            type={toast.type}
+            onClose={() => setToast(null)}
+          />
+        )}
+      </AnimatePresence>
       <h2 className="text-2xl font-bold text-amber-500">Quản Lý Câu Hỏi Tăng Tốc</h2>
 
       {questions.map((q, idx) => (

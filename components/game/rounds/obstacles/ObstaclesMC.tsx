@@ -1,4 +1,5 @@
-import React from 'react';
+'use client';
+import React, { useState } from 'react';
 import { useSocketContext } from "@/components/providers/SocketProvider";
 import GameRoundContainer from "../../GameRoundContainer";
 import { ObstacleState } from "@/server/game/GameConstants";
@@ -6,6 +7,7 @@ import { Check, X, Bell, Image as ImageIcon, Eye, Clock, ArrowLeftCircle, EyeOff
 import MiniRankingBoard from "../../MiniRankingBoard";
 import { motion, AnimatePresence } from "framer-motion";
 import { usePlayers, type Player } from "@/hooks/usePlayers";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 
 interface ObstaclesMCProps {
     obstacle: ObstacleState;
@@ -15,9 +17,29 @@ export default function ObstaclesMC({ obstacle }: ObstaclesMCProps) {
     const { socket } = useSocketContext();
     const { players } = usePlayers(); 
 
+    const [confirmConfig, setConfirmConfig] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        onConfirm: () => void;
+        type?: 'info' | 'warning' | 'danger' | 'success';
+    }>({
+        isOpen: false,
+        title: "",
+        message: "",
+        onConfirm: () => {},
+    });
+
     const handleSelectRow = (rowIndex: number) => {
         if (obstacle.status !== 'IDLE' && obstacle.status !== 'SHOW_ROW') {
-             if (!confirm("Đang trong lượt chơi, bạn có chắc muốn chuyển câu hỏi?")) return;
+             setConfirmConfig({
+                 isOpen: true,
+                 title: 'Chuyển hàng ngang',
+                 message: 'Đang trong lượt chơi, bạn có chắc muốn chuyển câu hỏi?',
+                 onConfirm: () => socket?.emit('mc_obstacle_select_row', { rowIndex }),
+                 type: 'warning'
+             });
+             return;
         }
         socket?.emit('mc_obstacle_select_row', { rowIndex });
     };
@@ -35,22 +57,34 @@ export default function ObstaclesMC({ obstacle }: ObstaclesMCProps) {
     };
 
     const handleFinishRow = () => {
-        if (confirm("Xác nhận hiện đáp án hàng ngang này? \n(Sẽ KHÔNG mở mảnh ghép hình ảnh)")) {
-            socket?.emit('mc_obstacle_finish_row');
-        }
+        setConfirmConfig({
+            isOpen: true,
+            title: 'Hiện đáp án',
+            message: 'Xác nhận hiện đáp án hàng ngang này? (Sẽ KHÔNG mở mảnh ghép hình ảnh)',
+            onConfirm: () => socket?.emit('mc_obstacle_finish_row'),
+            type: 'info'
+        });
     };
         
     const handleSolveCNV = (playerId: string, isCorrect: boolean) => {
-         // Show confirm dialog
-         if(confirm(`Xác nhận ${isCorrect ? 'ĐÚNG' : 'SAI'} cho thí sinh này?`)) {
-             socket?.emit('mc_obstacle_solve_cnv', { playerId, isCorrect });
-         }
+         const playerName = players.find(p => p._id === playerId)?.name || 'Thí sinh';
+         setConfirmConfig({
+             isOpen: true,
+             title: 'Xác nhận chướng ngại vật',
+             message: `Xác nhận ${isCorrect ? 'ĐÚNG' : 'SAI'} cho ${playerName}?`,
+             onConfirm: () => socket?.emit('mc_obstacle_solve_cnv', { playerId, isCorrect }),
+             type: isCorrect ? 'success' : 'danger'
+         });
     };
     
     const handleShowImage = () => {
-        if(confirm("Bạn có chắc chắn muốn mở toàn bộ hình ảnh?")) {
-            socket?.emit('mc_obstacle_show_image');
-        }
+        setConfirmConfig({
+            isOpen: true,
+            title: 'Mở toàn bộ ảnh',
+            message: 'Bạn có chắc chắn muốn mở toàn bộ hình ảnh chướng ngại vật?',
+            onConfirm: () => socket?.emit('mc_obstacle_show_image'),
+            type: 'warning'
+        });
     };
 
     // Sort Buzzer Queue
@@ -60,6 +94,14 @@ export default function ObstaclesMC({ obstacle }: ObstaclesMCProps) {
     if (obstacle.status === 'FINISHED') {
         return (
             <GameRoundContainer className="text-slate-100" fullWidth>
+                <ConfirmModal 
+                    isOpen={confirmConfig.isOpen}
+                    title={confirmConfig.title}
+                    message={confirmConfig.message}
+                    onConfirm={confirmConfig.onConfirm}
+                    onCancel={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+                    type={confirmConfig.type}
+                />
                 <MiniRankingBoard />
                 
                 <div className="w-full h-full flex flex-col items-center justify-center animate-fade-in pb-12">
@@ -111,6 +153,15 @@ export default function ObstaclesMC({ obstacle }: ObstaclesMCProps) {
     return (
         <GameRoundContainer className="text-slate-100" fullWidth>
             <MiniRankingBoard />
+
+            <ConfirmModal 
+                isOpen={confirmConfig.isOpen}
+                title={confirmConfig.title}
+                message={confirmConfig.message}
+                onConfirm={confirmConfig.onConfirm}
+                onCancel={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+                type={confirmConfig.type}
+            />
 
             {/* HEADER */}
             <div className="w-full flex justify-between items-center mb-6 pl-4 border-l-4 border-amber-500">
@@ -448,16 +499,20 @@ export default function ObstaclesMC({ obstacle }: ObstaclesMCProps) {
                                                       >
                                                           <Eye size={14} /> HIỆN ĐÁP ÁN
                                                       </button>
-                                                      <button 
-                                                          onClick={() => {
-                                                              if(confirm("Xác nhận ĐÓNG hàng ngang này mà KHÔNG mở đáp án?")) {
-                                                                  socket?.emit('mc_obstacle_dismiss_row');
-                                                              }
-                                                          }}
-                                                          className="flex-1 py-2 bg-red-900/40 hover:bg-red-900/60 text-red-400 rounded-lg text-[10px] sm:text-xs font-bold uppercase border border-red-500/30 hover:border-red-500/50 transition-all flex items-center justify-center gap-1 active:scale-95"
-                                                      >
-                                                          <EyeOff size={14} /> KHÔNG MỞ
-                                                      </button>
+                                                       <button 
+                                                           onClick={() => {
+                                                               setConfirmConfig({
+                                                                   isOpen: true,
+                                                                   title: 'Đóng hàng ngang',
+                                                                   message: 'Xác nhận ĐÓNG hàng ngang này mà KHÔNG mở đáp án?',
+                                                                   onConfirm: () => socket?.emit('mc_obstacle_dismiss_row'),
+                                                                   type: 'danger'
+                                                               });
+                                                           }}
+                                                           className="flex-1 py-2 bg-red-900/40 hover:bg-red-900/60 text-red-400 rounded-lg text-[10px] sm:text-xs font-bold uppercase border border-red-500/30 hover:border-red-500/50 transition-all flex items-center justify-center gap-1 active:scale-95"
+                                                       >
+                                                           <EyeOff size={14} /> KHÔNG MỞ
+                                                       </button>
                                                   </div>
                                               </div>
                                          ) : (

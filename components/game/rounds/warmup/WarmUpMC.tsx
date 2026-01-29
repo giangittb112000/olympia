@@ -1,9 +1,11 @@
+'use client';
 import React, { useEffect, useState } from 'react';
 import { useSocketContext } from "@/components/providers/SocketProvider";
 import GameRoundContainer from "../../GameRoundContainer";
 import { WarmUpState } from "@/server/game/GameConstants";
 import clsx from 'clsx';
 import { Player } from '@/types';
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 
 interface WarmUpMCProps {
     warmUp: WarmUpState;
@@ -23,6 +25,19 @@ export default function WarmUpMC({ warmUp }: WarmUpMCProps) {
     // Setup State
     const [selectedPlayer, setSelectedPlayer] = useState<string>("");
     const [selectedPack, setSelectedPack] = useState<string>("");
+
+    const [confirmConfig, setConfirmConfig] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        onConfirm: () => void;
+        type?: 'info' | 'warning' | 'danger' | 'success';
+    }>({
+        isOpen: false,
+        title: "",
+        message: "",
+        onConfirm: () => {},
+    });
 
     // Realtime Preview Emission
     useEffect(() => {
@@ -75,15 +90,27 @@ export default function WarmUpMC({ warmUp }: WarmUpMCProps) {
 
     return (
         <GameRoundContainer className="text-slate-100">
+            <ConfirmModal 
+                isOpen={confirmConfig.isOpen}
+                title={confirmConfig.title}
+                message={confirmConfig.message}
+                onConfirm={confirmConfig.onConfirm}
+                onCancel={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+                type={confirmConfig.type}
+            />
             <div className="flex justify-between items-center mb-8 border-b border-slate-800 pb-4 w-full max-w-5xl">
                 <h1 className="text-4xl font-black font-display text-amber-500">KHỞI ĐỘNG (MC)</h1>
                 <div className="flex gap-4 items-center">
                     {(warmUp.status === 'PLAYING' || warmUp.status === 'READY') && (
                          <button 
                             onClick={() => {
-                                if (confirm('Bạn có chắc muốn DỪNG vòng thi này?')) {
-                                    socket?.emit('mc_warmup_reset');
-                                }
+                                setConfirmConfig({
+                                    isOpen: true,
+                                    title: 'Dừng vòng thi',
+                                    message: 'Bạn có chắc chắn muốn DỪNG vòng thi này?',
+                                    onConfirm: () => socket?.emit('mc_warmup_reset'),
+                                    type: 'danger'
+                                });
                             }}
                             className="bg-red-900/50 hover:bg-red-900 text-red-200 border border-red-800 px-4 py-2 rounded font-bold text-sm transition-colors"
                         >

@@ -24,10 +24,37 @@ export default function AudioUnlocker({ children }: { children: React.ReactNode 
     unlock();
   }, []);
 
-  const handleUnlockAudio = () => {
-      const audio = new Audio();
-      audio.play().catch(() => {}); 
-      setAudioAccepted(true);
+  const handleUnlockAudio = async () => {
+      try {
+          // 1. Resume Context if exists
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+          const ctx = new AudioContext();
+          await ctx.resume();
+
+          // 2. Play a distinct silent buffer to engage audio engine
+          const buffer = ctx.createBuffer(1, 1, 22050);
+          const source = ctx.createBufferSource();
+          source.buffer = buffer;
+          source.connect(ctx.destination);
+          
+          // Legacy safe start
+          if (source.start) {
+            source.start(0);
+          } else {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (source as any).noteOn(0);
+          }
+
+          // 3. Briefly unmute any potential video/audio elements if needed
+          // But usually, the interaction above is enough. 
+          // We specifically avoid the faulty "new Audio(base64)" which caused the NotSupportedError
+          
+      } catch (e) {
+          console.error("Audio unlock attempt failed", e);
+      } finally {
+          setAudioAccepted(true);
+      }
   };
 
   if (!audioAccepted) {

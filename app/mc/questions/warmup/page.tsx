@@ -5,6 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import MCGuard from "@/components/auth/MCGuard";
 import Link from "next/link";
 import { Question } from "@/types";
+import { Toast, ToastType } from "@/components/ui/Toast";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 
 interface Pack {
     _id: string;
@@ -20,6 +22,20 @@ export default function WarmUpQuestionsPage() {
     // Create/Edit Pack State
     const [newPackName, setNewPackName] = useState("");
     const [editingPack, setEditingPack] = useState<Pack | null>(null);
+
+    const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+    const [confirmConfig, setConfirmConfig] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        onConfirm: () => void;
+        type?: 'info' | 'warning' | 'danger' | 'success';
+    }>({
+        isOpen: false,
+        title: "",
+        message: "",
+        onConfirm: () => {},
+    });
 
     useEffect(() => {
         fetchPacks();
@@ -60,7 +76,7 @@ export default function WarmUpQuestionsPage() {
                 setNewPackName("");
                 fetchPacks();
             } else {
-                alert("Failed to create pack");
+                setToast({ message: "Failed to create pack", type: 'error' });
             }
         } catch (err) {
             console.error(err);
@@ -70,13 +86,22 @@ export default function WarmUpQuestionsPage() {
     };
 
     const handleDeletePack = async (id: string) => {
-        if (!confirm("Xóa gói câu hỏi này?")) return;
-        try {
-            await fetch(`/api/warmup/packs/${id}`, { method: 'DELETE' });
-            setPacks(prev => prev.filter(p => p._id !== id));
-        } catch (err) {
-            console.error(err);
-        }
+        setConfirmConfig({
+            isOpen: true,
+            title: "Xóa gói câu hỏi",
+            message: "Xóa gói câu hỏi này?",
+            onConfirm: async () => {
+                try {
+                    await fetch(`/api/warmup/packs/${id}`, { method: 'DELETE' });
+                    setPacks(prev => prev.filter(p => p._id !== id));
+                    setToast({ message: "Đã xóa gói câu hỏi", type: 'success' });
+                } catch (err) {
+                    console.error(err);
+                    setToast({ message: "Lỗi khi xóa gói câu hỏi", type: 'error' });
+                }
+            },
+            type: 'danger'
+        });
     };
 
     const handleSavePack = async () => {
@@ -91,12 +116,13 @@ export default function WarmUpQuestionsPage() {
                 // Update local list
                 setPacks(prev => prev.map(p => p._id === editingPack._id ? editingPack : p));
                 setEditingPack(null);
+                setToast({ message: "Đã lưu gói câu hỏi", type: 'success' });
             } else {
-                alert("Failed to update pack");
+                setToast({ message: "Failed to update pack", type: 'error' });
             }
         } catch (err) {
             console.error(err);
-            alert("Error saving");
+            setToast({ message: "Error saving", type: 'error' });
         }
     };
 
@@ -126,6 +152,24 @@ export default function WarmUpQuestionsPage() {
     return (
         <MCGuard>
             <div className="min-h-screen bg-slate-950 text-slate-100 p-8">
+                <AnimatePresence>
+                    {toast && (
+                        <Toast
+                            message={toast.message}
+                            type={toast.type}
+                            onClose={() => setToast(null)}
+                        />
+                    )}
+                </AnimatePresence>
+
+                <ConfirmModal
+                    isOpen={confirmConfig.isOpen}
+                    title={confirmConfig.title}
+                    message={confirmConfig.message}
+                    onConfirm={confirmConfig.onConfirm}
+                    onCancel={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+                    type={confirmConfig.type}
+                />
                 <header className="mb-12 border-b border-amber-900/50 pb-6 flex justify-between items-center">
                     <div>
                         <h1 className="text-4xl font-bold text-amber-500 font-display">QUẢN LÝ GÓI CÂU HỎI VÒNG 1</h1>

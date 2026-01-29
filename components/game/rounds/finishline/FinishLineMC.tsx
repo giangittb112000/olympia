@@ -2,11 +2,13 @@
 import { useSocketContext } from "@/components/providers/SocketProvider";
 import { usePlayers } from "@/hooks/usePlayers";
 import GameRoundContainer from "../../GameRoundContainer";
-import { ArrowLeft, RotateCcw, Play, Star, Bell, SkipForward } from "lucide-react";
+import { ArrowLeft, RotateCcw, Play, Star, Bell, SkipForward, Check, X } from "lucide-react";
 import { AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
 import { Toast, ToastType } from "@/components/ui/Toast";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 
 // Finish Line State Interface
 interface FinishLineState {
@@ -70,10 +72,23 @@ export default function FinishLineMC({ finishLine }: FinishLineMCProps) {
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
   const [judgedWrong, setJudgedWrong] = useState(false);
   const [localStealAttempt, setLocalStealAttempt] = useState<{
-    answerText: string;
-    playerName: string;
     playerId: string;
+    playerName: string;
+    answerText: string;
   } | null>(null);
+
+  const [confirmConfig, setConfirmConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    type?: 'info' | 'warning' | 'danger' | 'success';
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+  });
 
   // Reset state when question changes
   useEffect(() => {
@@ -113,24 +128,40 @@ export default function FinishLineMC({ finishLine }: FinishLineMCProps) {
      return () => { socket?.off("error", handleError); };
   }, [socket]);
 
-  const handleJudgeCorrect = () => {
-    socket?.emit("mc_finishline_judge_answer", { correct: true });
-    // Auto next question after 3 seconds to show result
-    setTimeout(() => {
-      socket?.emit("mc_finishline_next_question");
-    }, 3000);
+  const handleCorrect = () => {
+    setConfirmConfig({
+      isOpen: true,
+      title: "Xác nhận kết quả",
+      message: "Bạn có chắc chắn câu trả lời này ĐÚNG?",
+      onConfirm: () => socket?.emit("mc_finishline_judge_answer", { correct: true }),
+      type: 'success'
+    });
   };
 
-  const handleJudgeWrong = () => {
-    socket?.emit("mc_finishline_judge_answer", { correct: false });
-    setJudgedWrong(true);
+  const handleIncorrect = () => {
+    setConfirmConfig({
+      isOpen: true,
+      title: "Xác nhận kết quả",
+      message: "Bạn có chắc chắn câu trả lời này SAI?",
+      onConfirm: () => {
+        socket?.emit("mc_finishline_judge_answer", { correct: false });
+        setJudgedWrong(true);
+      },
+      type: 'danger'
+    });
   };
 
   const handleReset = () => {
-    if (confirm("⚠️ Reset vòng Về Đích? (Không xóa Question Bank)")) {
-      socket?.emit("mc_finishline_reset", { keepBank: true });
-      setToast({ message: "✅ Đã reset vòng Về Đích!", type: "success" });
-    }
+    setConfirmConfig({
+      isOpen: true,
+      title: "Cảnh báo Reset",
+      message: "⚠️ Bạn có chắc chắn muốn Reset vòng Về Đích? (Thao tác này sẽ xóa tiến độ hiện tại nhưng giữ lại ngân hàng câu hỏi)",
+      onConfirm: () => {
+        socket?.emit("mc_finishline_reset", { keepBank: true });
+        setToast({ message: "✅ Đã reset vòng Về Đích!", type: "success" });
+      },
+      type: 'warning'
+    });
   };
 
   const handleSelectPlayer = (playerId: string) => {
@@ -139,17 +170,6 @@ export default function FinishLineMC({ finishLine }: FinishLineMCProps) {
 
     socket?.emit("mc_finishline_select_player", { playerId });
     setToast({ message: `✅ Đã chọn ${player.name}`, type: "success" });
-  };
-
-  const handleToggleStar = () => {
-    const currentQ = finishLine.currentPack?.questions[finishLine.currentQuestionIndex];
-    if (!currentQ) return;
-
-    socket?.emit("mc_finishline_toggle_star", { enabled: !currentQ.starActivated });
-  };
-
-  const handleStartTimer = () => {
-    socket?.emit("mc_finishline_start_timer", { duration: 30 });
   };
 
   const handleEnableBuzzer = () => {
@@ -170,6 +190,19 @@ export default function FinishLineMC({ finishLine }: FinishLineMCProps) {
   if (finishLine.status === "IDLE") {
     return (
       <GameRoundContainer>
+        <AnimatePresence>
+          {toast && (
+            <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
+          )}
+        </AnimatePresence>
+        <ConfirmModal 
+          isOpen={confirmConfig.isOpen}
+          title={confirmConfig.title}
+          message={confirmConfig.message}
+          onConfirm={confirmConfig.onConfirm}
+          onCancel={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+          type={confirmConfig.type}
+        />
         <div className="absolute top-6 left-6">
           <button
             onClick={() => socket?.emit("mc_set_phase", "IDLE")}
@@ -214,6 +247,15 @@ export default function FinishLineMC({ finishLine }: FinishLineMCProps) {
           )}
         </AnimatePresence>
 
+        <ConfirmModal 
+          isOpen={confirmConfig.isOpen}
+          title={confirmConfig.title}
+          message={confirmConfig.message}
+          onConfirm={confirmConfig.onConfirm}
+          onCancel={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+          type={confirmConfig.type}
+        />
+
         <div className="flex justify-between items-center mb-6">
           <div>
             <h1 className="text-3xl font-black text-purple-400">🏁 VỀ ĐÍCH - CHỌN GÓI</h1>
@@ -244,23 +286,49 @@ export default function FinishLineMC({ finishLine }: FinishLineMCProps) {
 
         {/* Available Packs Display */}
         <div className="mb-6 bg-slate-800 rounded-xl p-6">
-          <h2 className="text-xl font-bold text-white mb-4">📦 GÓI CÒN LẠI:</h2>
+          <h2 className="text-xl font-bold text-white mb-4">
+            📦 CHỌN GÓI CÂU HỎI {finishLine.selectedPlayerName && `CHO: ${finishLine.selectedPlayerName}`}
+          </h2>
           <div className="grid grid-cols-3 gap-4">
-            {finishLine.availablePacks?.map((pack) => (
-              <div
-                key={pack.packType}
-                className={`rounded-lg p-4 text-center border-2 transition-all ${
-                  pack.count > 0
-                    ? "bg-slate-900 border-purple-500"
-                    : "bg-slate-900/50 border-slate-700 opacity-50"
-                }`}
-              >
-                <div className="text-3xl font-black text-purple-400">{pack.packType}đ</div>
-                <div className="text-slate-400 text-sm mt-2">
-                  Còn: <span className="text-white font-bold">{pack.count}</span> gói
-                </div>
-              </div>
-            ))}
+            {finishLine.availablePacks?.map((pack) => {
+              const isDisabled = pack.count === 0 || !finishLine.selectedPlayerId;
+              
+              return (
+                <button
+                  key={pack.packType}
+                  disabled={isDisabled}
+                  onClick={() => {
+                      if (finishLine.selectedPlayerId && pack.count > 0) {
+                          setConfirmConfig({
+                            isOpen: true,
+                            title: "Xác nhận chọn gói",
+                            message: `Xác nhận chọn gói ${pack.packType} điểm cho ${finishLine.selectedPlayerName}?`,
+                            onConfirm: () => {
+                                socket?.emit("mc_finishline_select_pack", {
+                                    playerId: finishLine.selectedPlayerId,
+                                    packType: pack.packType
+                                });
+                            },
+                            type: 'info'
+                          });
+                      } else {
+                          setToast({ message: "Vui lòng chọn Player trước!", type: "error" });
+                      }
+                  }}
+                  className={`rounded-lg p-4 text-center border-2 transition-all ${
+                    !isDisabled
+                      ? "bg-slate-900 border-purple-500 hover:bg-purple-900/50 hover:scale-105 cursor-pointer shadow-lg"
+                      : "bg-slate-900/50 border-slate-700 opacity-50 cursor-not-allowed"
+                  }`}
+                >
+                  <div className="text-3xl font-black text-purple-400">{pack.packType}đ</div>
+                  <div className="text-slate-400 text-sm mt-2">
+                    Còn: <span className="text-white font-bold">{pack.count}</span> gói
+                  </div>
+                  {!isDisabled && <div className="mt-2 text-xs bg-purple-600 text-white py-1 rounded font-bold">CHỌN NGAY</div>}
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -387,7 +455,7 @@ export default function FinishLineMC({ finishLine }: FinishLineMCProps) {
                     />
                   )}
                   {currentQ.mediaType === "VIDEO" && (
-                    <video src={currentQ.mediaUrl} controls className="w-full h-full" />
+                    <video src={currentQ.mediaUrl} autoPlay controls={false} className="w-full h-full" />
                   )}
                   {currentQ.mediaType === "AUDIO" && (
                     <div className="flex items-center justify-center h-full">
@@ -432,12 +500,27 @@ export default function FinishLineMC({ finishLine }: FinishLineMCProps) {
                     {finishLine.timeLeft}s
                   </span>
                 </div>
-                {!finishLine.isTimerRunning && !currentQ.answer && (
-                  <button
-                    onClick={handleStartTimer}
-                    className="w-full py-2 bg-green-600 hover:bg-green-500 text-white text-sm font-bold rounded-lg flex items-center justify-center gap-1.5 transition-colors">
-                    <Play size={14} /> START
-                  </button>
+                {finishLine.isTimerRunning ? (
+                     <div className="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
+                        <motion.div 
+                            className="h-full bg-green-500"
+                            initial={{ width: "100%" }}
+                            animate={{ width: `${(finishLine.timeLeft / 30) * 100}%` }}
+                            transition={{ ease: "linear", duration: 1 }}
+                        />
+                     </div>
+                ) : (
+                    <div className="text-center py-1">
+                        {currentQ.mediaType === "VIDEO" && !currentQ.answer && finishLine.timeLeft > 0 ? (
+                            <span className="text-blue-400 font-bold animate-pulse text-sm">
+                                🎥 Đang phát video...
+                            </span>
+                        ) : (
+                             <span className="text-slate-500 text-xs italic">
+                                {finishLine.timeLeft === 0 ? "Hết giờ" : "Đang chờ..."}
+                             </span>
+                        )}
+                    </div>
                 )}
               </div>
             </div>
@@ -459,28 +542,27 @@ export default function FinishLineMC({ finishLine }: FinishLineMCProps) {
                 {/* Judge Controls */}
                 <div className="grid grid-cols-2 gap-4">
                   <button
-                    onClick={handleJudgeCorrect}
+                    onClick={handleCorrect}
                     className={`py-4 rounded-xl font-bold text-xl flex flex-col items-center justify-center transition-all ${
                       currentQ.answer.isCorrect
                         ? "bg-green-600 text-white shadow-[0_0_20px_rgba(22,163,74,0.5)] scale-105"
                         : "bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-white"
                     }`}
                   >
-                    <span className="text-3xl mb-1">✅</span>
+                    <Check size={28} className="mb-1" />
                     ĐÚNG
                     {currentQ.answer.isCorrect && <span className="text-xs mt-1">+{currentQ.answer.pointsEarned} điểm</span>}
-                    {currentQ.answer.isCorrect && <span className="text-[10px] mt-1 text-slate-200">(Auto-next in 3s)</span>}
                   </button>
 
                   <button
-                    onClick={handleJudgeWrong}
+                    onClick={handleIncorrect}
                     className={`py-4 rounded-xl font-bold text-xl flex flex-col items-center justify-center transition-all ${
                       judgedWrong || (!currentQ.answer.isCorrect && currentQ.answer.pointsEarned !== undefined && currentQ.answer.pointsEarned !== 0)
                         ? "bg-red-600 text-white shadow-[0_0_20px_rgba(220,38,38,0.5)] scale-105"
                         : "bg-slate-700 text-slate-400 hover:bg-slate-600 hover:text-white"
                     }`}
                   >
-                     <span className="text-3xl mb-1">❌</span>
+                     <X size={28} className="mb-1" />
                      SAI
                      {!currentQ.answer.isCorrect && <span className="text-xs mt-1">Mở Buzzer?</span>}
                   </button>
@@ -676,6 +758,19 @@ export default function FinishLineMC({ finishLine }: FinishLineMCProps) {
   if (finishLine.status === "FINISHED") {
     return (
       <GameRoundContainer>
+         <AnimatePresence>
+          {toast && (
+            <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
+          )}
+        </AnimatePresence>
+        <ConfirmModal 
+          isOpen={confirmConfig.isOpen}
+          title={confirmConfig.title}
+          message={confirmConfig.message}
+          onConfirm={confirmConfig.onConfirm}
+          onCancel={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+          type={confirmConfig.type}
+        />
         <div className="flex flex-col items-center justify-center h-full gap-6">
           <h1 className="text-5xl font-black text-purple-400">🎉 HOÀN THÀNH</h1>
           <p className="text-slate-400 text-lg">Vòng Về Đích đã kết thúc!</p>
@@ -689,6 +784,26 @@ export default function FinishLineMC({ finishLine }: FinishLineMCProps) {
         </div>
       </GameRoundContainer>
     );
+  }
+
+  if (finishLine.status === "STAR_SELECTION") {
+      return (
+        <GameRoundContainer>
+             <div className="flex flex-col items-center justify-center h-full space-y-6">
+                <div className="text-6xl animate-bounce">⭐</div>
+                <h2 className="text-2xl font-bold text-white text-center">
+                    Đang đợi {finishLine.selectedPlayerName || "thí sinh"} chọn Ngôi sao hy vọng...
+                </h2>
+                <div className="w-64 h-2 bg-slate-800 rounded-full overflow-hidden">
+                    <motion.div 
+                        className="h-full bg-yellow-500"
+                        animate={{ x: [-256, 256] }} 
+                        transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
+                    />
+                </div>
+            </div>
+        </GameRoundContainer>
+      );
   }
 
   return (

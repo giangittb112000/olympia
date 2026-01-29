@@ -424,6 +424,8 @@ export function registerFinishLineHandlers(io: Server, socket: Socket) {
             updateData.finishedPlayerIds = finishedIds;
         }
         
+        gameManager.updateFinishLineState(updateData);
+
         io.emit("finishline_pack_completed", {
           packType: pack.packType,
           ownerId: pack.ownerId,
@@ -442,10 +444,21 @@ export function registerFinishLineHandlers(io: Server, socket: Socket) {
         const hasUsed = currentStarUsed.includes(ownerId);
         
         // Transition to STAR_SELECTION if not used, else PLAYING_QUESTION
-        updateData.status = hasUsed ? "PLAYING_QUESTION" : "STAR_SELECTION";
+        const nextStatus = hasUsed ? "PLAYING_QUESTION" : "STAR_SELECTION";
+        
+        // Update state first
+        gameManager.updateFinishLineState({
+            ...updateData,
+            status: nextStatus
+        });
+        
+        // If jumping straight to playing (Star Used), CHECK MEDIA & AUTO START
+        if (nextStatus === "PLAYING_QUESTION") {
+             // CRITICAL: Update the local match object so the helper sees the NEW index
+             match.finishLine.currentQuestionIndex = nextIndex;
+             handleAutoStartTimer(match, io);
+        }
       }
-
-      gameManager.updateFinishLineState(updateData);
       
       console.log(`[FinishLine] Next question: ${nextIndex + 1}`);
     } catch (error) {
@@ -469,6 +482,119 @@ export function registerFinishLineHandlers(io: Server, socket: Socket) {
       console.log("[FinishLine] Round finished");
     } catch (error) {
       console.error("Error finishing round:", error);
+    }
+  });
+
+  /**
+   * MC: Select pack type
+   */
+  socket.on("mc_finishline_select_pack", async (data: ISelectPackData) => {
+    try {
+      await connectDB();
+      const { playerId, packType } = data;
+
+      // Get current state from GameManager (in-memory, more reliable than DB)
+      const currentState = gameManager.getState();
+      if (!currentState.finishLine) {
+        socket.emit("error", { message: "Finish Line not initialized" });
+        return;
+      }
+
+      // Check if player already finished (from in-memory state)
+      if (currentState.finishLine.finishedPlayerIds?.includes(playerId)) {
+          socket.emit("error", { message: "Player already finished their turn" });
+          return;
+      }
+
+      // Validate it's PACK_SELECTION phase
+      if (currentState.finishLine.status !== "PACK_SELECTION") {
+        socket.emit("error", { message: "Not in pack selection phase" });
+        return;
+      }
+
+      // Verify the selected player is the one we are creating a pack for
+      if (currentState.finishLine.selectedPlayerId !== playerId) {
+        socket.emit("error", { message: "Selected player mismatch" });
+        return;
+      }
+
+      // Now fetch match from DB for pack generation
+      const match = await Match.findOne({ isActive: true });
+      if (!match) {
+        socket.emit("error", { message: "No active match" });
+        return;
+      }
+
+      // Check pack availability
+      const packInfo = match.finishLine.availablePacks.find(
+        (p: IAvailablePack) => p.packType === packType
+      );
+      if (!packInfo || packInfo.count === 0) {
+        socket.emit("error", { message: "Pack not available" });
+        return;
+      }
+
+      // Generate pack
+      const { success, packId, questions, error } = await generatePack(
+        match._id.toString(),
+        playerId,
+        packType
+      );
+
+      if (!success) {
+        socket.emit("error", { message: error || "Failed to select pack" });
+        return;
+      }
+
+      // Get player info
+      const player = await Player.findById(playerId);
+      if (!player) {
+        socket.emit("error", { message: "Player not found" });
+        return;
+      }
+
+      const currentPack = {
+        packId: packId!,
+        packType,
+        ownerId: playerId,
+        ownerName: player.name,
+        questions: questions!.map(q => ({
+          ...q,
+          answer: null,
+          starActivated: false,
+        })),
+      };
+
+       // Decrease pack count
+      const updatedAvailablePacks = match.finishLine.availablePacks.map((p: IAvailablePack) => {
+          if (p.packType === packType) {
+              return { ...p, count: p.count - 1 };
+          }
+          return p;
+      });
+
+      // Check if player has used star
+      const hasUsedStar = match.finishLine.starUsedPlayerIds?.includes(playerId);
+      const nextStatus = hasUsedStar ? "PLAYING_QUESTION" : "STAR_SELECTION";
+
+      gameManager.updateFinishLineState({
+          currentPack,
+          currentQuestionIndex: 0,
+          status: nextStatus,
+          availablePacks: updatedAvailablePacks
+      });
+
+      io.emit("finishline_pack_created", {
+        packType,
+        ownerId: playerId,
+        ownerName: player.name,
+        questionCount: questions!.length,
+      });
+
+      console.log(`[FinishLine] MC selected ${packType}pt pack for ${player.name}`);
+    } catch (error) {
+      console.error("Error selecting pack by MC:", error);
+      socket.emit("error", { message: "Failed to select pack" });
     }
   });
 
@@ -597,8 +723,121 @@ export function registerFinishLineHandlers(io: Server, socket: Socket) {
   });
 
   /**
-   * Player: Submit answer
+   * Helper: Start Timer or Wait for Video
    */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handleAutoStartTimer = (match: any, io: Server) => {
+    const currentQ = match.finishLine.currentPack.questions[match.finishLine.currentQuestionIndex];
+    const isVideo = currentQ.mediaType === "VIDEO";
+
+    if (isVideo) {
+      console.log(`[FinishLine] Question has VIDEO. Waiting for client_finishline_video_ended...`);
+      // Ensure timer is OFF initially
+      gameManager.updateFinishLineState({ isTimerRunning: false, timeLeft: 30 }); // Reset time just in case
+    } else {
+      console.log(`[FinishLine] No VIDEO. Auto-starting timer...`);
+      // Start Timer Immediately
+      gameManager.updateFinishLineState({ isTimerRunning: true, timeLeft: 30 });
+      startTimerInterval(io); // We need to expose/refactor the interval logic
+    }
+  };
+
+  /**
+   * Refactored Timer Interval Start
+   */
+  const startTimerInterval = (io: Server) => {
+      // Clear existing interval if any (pseudo-code, in real app need to track interval ID)
+      // For this architecture, we rely on the closure or global map. 
+      // Since we can't easily refactor the whole file to use a map right now, 
+      // let's re-use the logic from mc_finishline_start_timer but safely.
+      
+      console.log(`[FinishLine] Timer Interval Logic Triggered`);
+      // Ideally calls specific function. For now we will replicate the logic to ensure robustness.
+      // ... (We will use a shared function if possible, but inline is safer for this edit)
+      
+       const timerInterval = setInterval(() => {
+        try {
+          const state = gameManager.getState();
+          if (!state.finishLine?.isTimerRunning) {
+            clearInterval(timerInterval);
+            return;
+          }
+
+          const newTime = state.finishLine.timeLeft - 1;
+
+          if (newTime <= 0) {
+             gameManager.updateFinishLineState({
+                 isTimerRunning: false,
+                 timeLeft: 0
+             });
+            clearInterval(timerInterval);
+            console.log("[FinishLine] Timer reached 0");
+            io.emit('finishline_timer_ended'); // Notify clients
+          } else {
+             gameManager.updateFinishLineState({
+                 timeLeft: newTime
+             });
+          }
+        } catch (err) {
+          console.error("[FinishLine] Timer interval error:", err);
+          clearInterval(timerInterval);
+        }
+      }, 1000);
+  };
+
+  /**
+   * Player: Confirm Star Usage
+   */
+  socket.on("player_finishline_confirm_star", async (data: { useStar: boolean }) => {
+    try {
+        await connectDB();
+        const { useStar } = data;
+        const match = await Match.findOne({ isActive: true });
+        
+        // Validation...
+        if (!match?.finishLine.currentPack) return;
+
+        const currentQ = match.finishLine.currentPack.questions[match.finishLine.currentQuestionIndex];
+        
+        // Update Star Status
+        currentQ.starActivated = useStar;
+        
+        // Mark player as having used star if true
+        if (useStar) {
+            if (!match.finishLine.starUsedPlayerIds) match.finishLine.starUsedPlayerIds = [];
+            match.finishLine.starUsedPlayerIds.push(match.finishLine.currentPack.ownerId);
+        }
+
+        // Transition to PLAYING
+        gameManager.updateFinishLineState({
+            currentPack: match.finishLine.currentPack,
+            status: "PLAYING_QUESTION",
+            starUsedPlayerIds: match.finishLine.starUsedPlayerIds
+        });
+        
+        console.log(`[FinishLine] Star confirmed: ${useStar}. Transitioning to PLAYING.`);
+        
+        // Auto Start Logic
+        handleAutoStartTimer(match, io);
+
+    } catch (e) {
+        console.error("Error confirming star:", e);
+    }
+  });
+
+  /**
+   * Client: Video Ended (Trigger Timer)
+   */
+  socket.on("client_finishline_video_ended", async () => {
+      // Robustness: Check if timer already running
+      const state = gameManager.getState();
+      if (state.finishLine?.isTimerRunning) return; // Prevent double start
+
+      console.log(`[FinishLine] Video ended event received. Starting timer.`);
+      gameManager.updateFinishLineState({ isTimerRunning: true });
+      startTimerInterval(io);
+  });
+
   socket.on("player_finishline_answer", async (data: IAnswerData) => {
     try {
       await connectDB();

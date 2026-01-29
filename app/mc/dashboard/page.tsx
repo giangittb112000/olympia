@@ -8,12 +8,30 @@ import Link from "next/link";
 import MCGuard from "@/components/auth/MCGuard";
 import RoundResetButton from "@/components/game/shared/RoundResetButton";
 import { PlayCircle } from "lucide-react";
+import { useState } from "react";
+import { Toast, ToastType } from "@/components/ui/Toast";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { AnimatePresence } from "framer-motion";
 
 
 
 export default function MCDashboardPage() {
   const socket = useMCSocket();
   const { gameState } = useGameState();
+
+  const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+  const [confirmConfig, setConfirmConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    type?: 'info' | 'warning' | 'danger' | 'success';
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+  });
 
 
 
@@ -24,33 +42,57 @@ export default function MCDashboardPage() {
         ? "CẢNH BÁO: Bạn có chắc chắn muốn xóa TOÀN BỘ điểm của tất cả người chơi không?" 
         : `Bạn có chắc chắn muốn xóa điểm vòng ${type.toUpperCase()} không?`;
     
-    if (!confirm(confirmMsg)) return;
-
-    try {
-        const payload = type === 'all' ? { all: true } : { round: type };
-        const res = await fetch('/api/scores/reset', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
-        const data = await res.json();
-        
-        if (data.success) {
-            alert("Đã reset điểm thành công!");
-            socket?.emit('mc_refresh_ranking'); 
-        } else {
-            alert("Lỗi: " + data.error);
-        }
-    } catch (e) {
-        console.error(e);
-        alert("Lỗi kết nối reset điểm");
-    }
+    setConfirmConfig({
+        isOpen: true,
+        title: "Xác nhận reset điểm",
+        message: confirmMsg,
+        onConfirm: async () => {
+            try {
+                const payload = type === 'all' ? { all: true } : { round: type };
+                const res = await fetch('/api/scores/reset', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                
+                if (data.success) {
+                    setToast({ message: "Đã reset điểm thành công!", type: 'success' });
+                    socket?.emit('mc_refresh_ranking'); 
+                } else {
+                    setToast({ message: "Lỗi: " + data.error, type: 'error' });
+                }
+            } catch (e) {
+                console.error(e);
+                setToast({ message: "Lỗi kết nối reset điểm", type: 'error' });
+            }
+        },
+        type: type === 'all' ? 'danger' : 'warning'
+    });
   };
 
   return (
     <MCGuard>
       <GameScreenRouter>
         <div className="min-h-screen bg-slate-950 text-slate-100 p-8">
+            <AnimatePresence>
+                {toast && (
+                    <Toast
+                        message={toast.message}
+                        type={toast.type}
+                        onClose={() => setToast(null)}
+                    />
+                )}
+            </AnimatePresence>
+
+            <ConfirmModal
+                isOpen={confirmConfig.isOpen}
+                title={confirmConfig.title}
+                message={confirmConfig.message}
+                onConfirm={confirmConfig.onConfirm}
+                onCancel={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+                type={confirmConfig.type}
+            />
           
           {/* DEBUG PANEL - Visible only on Dashboard */}
           <div className="fixed bottom-4 right-4 bg-black/80 border border-slate-700 p-4 text-xs font-mono rounded z-50">

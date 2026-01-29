@@ -11,14 +11,15 @@ export default function MediaPlayer({ mediaType, mediaUrl }: MediaPlayerProps) {
       <video
         key={mediaUrl}
         src={mediaUrl}
-        controls
         className="w-full h-full object-contain rounded-xl"
-        autoPlay={false}
+        autoPlay
+        controls={false}
       />
     );
   }
 
   return (
+    /* eslint-disable-next-line @next/next/no-img-element */
     <img
       src={mediaUrl}
       alt="Question media"

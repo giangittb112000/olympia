@@ -5,9 +5,11 @@ import { useCurrentPlayer } from "@/hooks/useCurrentPlayer";
 import GameRoundContainer from "../../GameRoundContainer";
 import { FinishLineState } from "@/server/game/GameConstants";
 import { motion, AnimatePresence } from "framer-motion";
-import { Package, Star, SendHorizontal } from "lucide-react";
+import { Star, SendHorizontal } from "lucide-react";
 import ResultOverlay from "./ResultOverlay";
 import MiniRankingBoard from "@/components/game/MiniRankingBoard";
+import { Toast, ToastType } from "@/components/ui/Toast";
+import { ConfirmModal, ConfirmModalProps } from "@/components/ui/ConfirmModal";
 interface FinishLinePlayerProps {
   finishLine: FinishLineState;
 }
@@ -24,6 +26,14 @@ function FinishLinePlayerContent({ finishLine }: FinishLinePlayerProps) {
     type: "correct" | "wrong" | "steal_success" | "steal_fail";
     points?: number;
   }>({ show: false, type: "correct" });
+
+  const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+  const [confirmConfig, setConfirmConfig] = useState<Omit<ConfirmModalProps, 'onCancel'>>({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+  });
 
   // Listen for result events
   useEffect(() => {
@@ -56,7 +66,7 @@ function FinishLinePlayerContent({ finishLine }: FinishLinePlayerProps) {
     };
 
     const handleError = (data: { message: string }) => {
-        alert(`LỖI: ${data.message}`);
+        setToast({ message: `LỖI: ${data.message}`, type: 'error' });
     };
 
     socket?.on("finishline_answer_result", handleAnswerResult);
@@ -75,6 +85,24 @@ function FinishLinePlayerContent({ finishLine }: FinishLinePlayerProps) {
     return (
       <GameRoundContainer>
         <MiniRankingBoard />
+        <AnimatePresence>
+          {toast && (
+            <Toast
+              message={toast.message}
+              type={toast.type}
+              onClose={() => setToast(null)}
+            />
+          )}
+        </AnimatePresence>
+
+        <ConfirmModal 
+          isOpen={confirmConfig.isOpen}
+          title={confirmConfig.title}
+          message={confirmConfig.message}
+          onConfirm={confirmConfig.onConfirm}
+          onCancel={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+          type={confirmConfig.type}
+        />
         <div className="flex flex-col items-center justify-center h-full gap-6 pt-16">
           <motion.div
             initial={{ scale: 0.5, opacity: 0 }}
@@ -121,7 +149,14 @@ function FinishLinePlayerContent({ finishLine }: FinishLinePlayerProps) {
         </div>
 
         {/* Pack Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+        <div className="text-center mb-8">
+            <h2 className="text-2xl font-bold text-white mb-2 animate-pulse">
+                ⏳ Vui lòng đợi MC chọn gói câu hỏi...
+            </h2>
+            <p className="text-slate-400">Bạn hãy thông báo lựa chọn của mình cho MC</p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto opacity-80 pointer-events-none grayscale">
           {[
             {
               type: 40 as const,
@@ -146,39 +181,16 @@ function FinishLinePlayerContent({ finishLine }: FinishLinePlayerProps) {
               finishLine.availablePacks?.find((p) => p.packType === pack.type)
                 ?.count || 0;
 
-            const isDisabled = !canSelect || remaining === 0;
-            if (isDisabled) {
-              return <div key={pack.type}></div>;
-            }
+            const isDisabled = remaining === 0;
+           
             return (
-              <motion.button
+              <div
                 key={pack.type}
-                disabled={isDisabled}
-                onClick={() => {
-                  console.log("Checking selection condition:", { 
-                    canSelect, 
-                    remaining, 
-                    playerId, 
-                    packType: pack.type 
-                  });
-                  
-                  if (canSelect && remaining > 0 && playerId) {
-                    console.log("Emitting player_finishline_select_pack");
-                    socket?.emit("player_finishline_select_pack", {
-                      playerId, 
-                      packType: pack.type,
-                    });
-                  } else {
-                    console.warn("Cannot select pack - verifying conditions failed");
-                  }
-                }}
                 className={`relative p-8 rounded-2xl border-4 transition-all ${
                   isDisabled
-                    ? "border-slate-700 bg-slate-800/30 opacity-50 cursor-not-allowed"
-                    : "border-purple-500 hover:border-amber-400 hover:scale-105 active:scale-95 cursor-pointer"
+                    ? "border-slate-700 bg-slate-800/30 opacity-50"
+                    : "border-slate-500 bg-slate-800"
                 }`}
-                whileHover={!isDisabled ? { y: -8 } : {}}
-                whileTap={!isDisabled ? { scale: 0.95 } : {}}
               >
                 {/* Badge */}
                 <div className="absolute -top-3 -right-3 bg-purple-600 text-white px-3 py-1 rounded-full text-sm font-bold">
@@ -198,19 +210,12 @@ function FinishLinePlayerContent({ finishLine }: FinishLinePlayerProps) {
                 {/* Structure */}
                 <p className="text-slate-300 text-sm mb-4">{pack.structure}</p>
 
-                {/* Action */}
-                {!isDisabled && (
-                  <div className="bg-purple-600 text-white py-2 px-4 rounded-lg font-bold">
-                    <Package className="inline mr-2" size={16} />
-                    CHỌN GÓI NÀY
-                  </div>
-                )}
                 {remaining === 0 && (
                   <div className="bg-slate-700 text-slate-400 py-2 px-4 rounded-lg">
                     HẾT GÓI
                   </div>
                 )}
-              </motion.button>
+              </div>
             );
           })}
         </div>
@@ -233,6 +238,24 @@ function FinishLinePlayerContent({ finishLine }: FinishLinePlayerProps) {
       return (
           <GameRoundContainer className="p-4 md:p-8 pt-16 flex items-center justify-center">
              <MiniRankingBoard />
+             <AnimatePresence>
+                {toast && (
+                    <Toast
+                    message={toast.message}
+                    type={toast.type}
+                    onClose={() => setToast(null)}
+                    />
+                )}
+            </AnimatePresence>
+
+            <ConfirmModal 
+                isOpen={confirmConfig.isOpen}
+                title={confirmConfig.title}
+                message={confirmConfig.message}
+                onConfirm={confirmConfig.onConfirm}
+                onCancel={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+                type={confirmConfig.type}
+            />
              
              {canSelect ? (
                  <div className="bg-slate-900/80 backdrop-blur-md border-4 border-amber-500 rounded-3xl p-8 max-w-2xl w-full text-center shadow-2xl relative overflow-hidden">
@@ -251,11 +274,15 @@ function FinishLinePlayerContent({ finishLine }: FinishLinePlayerProps) {
                      <p className="text-slate-300 mb-8 relative z-10">Bạn có muốn đặt Ngôi sao hy vọng cho câu hỏi này không?</p>
                      
                      <div className="grid grid-cols-2 gap-6 relative z-10">
-                         <button
+                          <button
                             onClick={() => {
-                                if(confirm("Bạn chắc chắn KHÔNG dùng ngôi sao?")) {
-                                    socket?.emit('player_finishline_confirm_star', { useStar: false });
-                                }
+                                setConfirmConfig({
+                                    isOpen: true,
+                                    title: 'Xác nhận',
+                                    message: 'Bạn chắc chắn KHÔNG dùng ngôi sao?',
+                                    onConfirm: () => socket?.emit('player_finishline_confirm_star', { useStar: false }),
+                                    type: 'warning'
+                                });
                             }}
                             className="bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold py-6 rounded-2xl text-xl transition-all active:scale-95"
                          >
@@ -264,9 +291,13 @@ function FinishLinePlayerContent({ finishLine }: FinishLinePlayerProps) {
                          
                          <button
                             onClick={() => {
-                                if(confirm("Xác nhận DÙNG Ngôi sao hy vọng? (Chỉ được dùng 1 lần)")) {
-                                    socket?.emit('player_finishline_confirm_star', { useStar: true });
-                                }
+                                setConfirmConfig({
+                                    isOpen: true,
+                                    title: 'Ngôi sao hy vọng',
+                                    message: 'Xác nhận DÙNG Ngôi sao hy vọng? (Chỉ được dùng 1 lần)',
+                                    onConfirm: () => socket?.emit('player_finishline_confirm_star', { useStar: true }),
+                                    type: 'success'
+                                });
                             }}
                             className="bg-gradient-to-r from-yellow-500 to-orange-600 hover:from-yellow-400 hover:to-orange-500 text-black font-black py-6 rounded-2xl text-xl shadow-[0_0_30px_rgba(245,158,11,0.5)] transition-all active:scale-95 flex flex-col items-center justify-center"
                          >
@@ -294,6 +325,24 @@ function FinishLinePlayerContent({ finishLine }: FinishLinePlayerProps) {
     return (
       <GameRoundContainer className="p-3 md:p-4 pt-16">
         <MiniRankingBoard />
+        <AnimatePresence>
+            {toast && (
+                <Toast
+                message={toast.message}
+                type={toast.type}
+                onClose={() => setToast(null)}
+                />
+            )}
+        </AnimatePresence>
+
+        <ConfirmModal 
+            isOpen={confirmConfig.isOpen}
+            title={confirmConfig.title}
+            message={confirmConfig.message}
+            onConfirm={confirmConfig.onConfirm}
+            onCancel={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+            type={confirmConfig.type}
+        />
         
         {/* Decorative Background Elements */}
         <ResultOverlay
@@ -370,11 +419,17 @@ function FinishLinePlayerContent({ finishLine }: FinishLinePlayerProps) {
                   />
                 )}
                 {currentQ.mediaType === "VIDEO" && (
-                  <video
-                    src={currentQ.mediaUrl}
-                    controls
-                    className="w-full h-full"
-                  />
+                    <video 
+                        src={currentQ.mediaUrl} 
+                        autoPlay 
+                        className="w-full h-full"
+                        onEnded={() => {
+                            console.log("Video ended, notifying server...");
+                            socket?.emit('client_finishline_video_ended');
+                        }}
+                        // Disable controls to prevent skipping
+                        controls={false}
+                    />
                 )}
                 {currentQ.mediaType === "AUDIO" && (
                   <div className="flex items-center justify-center h-full p-4">
@@ -395,9 +450,15 @@ function FinishLinePlayerContent({ finishLine }: FinishLinePlayerProps) {
                   currentQ={currentQ} 
                   playerId={playerId} 
                   isTimerRunning={finishLine.isTimerRunning} 
+                  setToast={setToast}
+                  setConfirmConfig={setConfirmConfig}
                 />
               ) : finishLine.selectedStealerId === playerId ? (
-                <StealAnswerInput playerId={playerId} />
+                <StealAnswerInput 
+                  playerId={playerId} 
+                  setToast={setToast}
+                  setConfirmConfig={setConfirmConfig}
+                />
               ) : (
                 <BuzzerButton
                   questionId={currentQ.questionId}
@@ -434,26 +495,34 @@ interface AnswerInputProps {
   };
   playerId: string | null;
   isTimerRunning?: boolean;
+  setToast: (val: { message: string; type: ToastType } | null) => void;
+  setConfirmConfig: (val: Omit<ConfirmModalProps, 'onCancel'>) => void;
 }
 
-function AnswerInput({ currentQ, playerId, isTimerRunning = false }: AnswerInputProps) {
+function AnswerInput({ currentQ, playerId, isTimerRunning = false, setToast, setConfirmConfig }: AnswerInputProps) {
   const { socket } = useSocketContext();
   const [answer, setAnswer] = useState("");
   const [submitted, setSubmitted] = useState(false);
 
   const handleSubmit = () => {
     if (!answer.trim() || !playerId) {
-      alert("Vui lòng nhập đáp án!");
+      setToast({ message: "Vui lòng nhập đáp án!", type: 'error' });
       return;
     }
 
-    if (confirm(`Gửi đáp án: "${answer}"?`)) {
-      socket?.emit("player_finishline_answer", {
-        playerId, // ✅ Send string playerId
-        answerText: answer.trim(),
-      });
-      setSubmitted(true);
-    }
+    setConfirmConfig({
+      isOpen: true,
+      title: 'Gửi đáp án',
+      message: `Gửi đáp án: "${answer}"?`,
+      onConfirm: () => {
+        socket?.emit("player_finishline_answer", {
+          playerId, // ✅ Send string playerId
+          answerText: answer.trim(),
+        });
+        setSubmitted(true);
+      },
+      type: 'info'
+    });
   };
 
   // Reset when question changes
@@ -651,26 +720,34 @@ function BuzzerButton({
 
 interface StealAnswerInputProps {
   playerId: string | null;
+  setToast: (val: { message: string; type: ToastType } | null) => void;
+  setConfirmConfig: (val: Omit<ConfirmModalProps, 'onCancel'>) => void;
 }
 
-function StealAnswerInput({ playerId }: StealAnswerInputProps) {
+function StealAnswerInput({ playerId, setToast, setConfirmConfig }: StealAnswerInputProps) {
   const { socket } = useSocketContext();
   const [answer, setAnswer] = useState("");
   const [submitted, setSubmitted] = useState(false);
 
   const handleSubmit = () => {
     if (!answer.trim() || !playerId) {
-      alert("Vui lòng nhập đáp án!");
+      setToast({ message: "Vui lòng nhập đáp án!", type: 'error' });
       return;
     }
 
-    if (confirm(`Gửi đáp án cướp điểm: "${answer}"?`)) {
-      socket?.emit("player_finishline_steal_answer", {
-        playerId,
-        answerText: answer.trim(),
-      });
-      setSubmitted(true);
-    }
+    setConfirmConfig({
+      isOpen: true,
+      title: 'Xác nhận cướp điểm',
+      message: `Gửi đáp án cướp điểm: "${answer}"?`,
+      onConfirm: () => {
+        socket?.emit("player_finishline_steal_answer", {
+          playerId,
+          answerText: answer.trim(),
+        });
+        setSubmitted(true);
+      },
+      type: 'warning'
+    });
   };
 
   if (submitted) {

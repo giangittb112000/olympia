@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSocketContext } from "@/components/providers/SocketProvider";
 import GameRoundContainer from "../../GameRoundContainer";
 import { ObstacleState } from "@/server/game/GameConstants";
 import { Check, X } from "lucide-react";
 import MiniRankingBoard from "../../MiniRankingBoard";
 import { motion, AnimatePresence } from "framer-motion";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { Toast, ToastType } from "@/components/ui/Toast";
 
 interface ObstaclesPlayerProps {
     obstacle: ObstacleState;
@@ -12,22 +14,38 @@ interface ObstaclesPlayerProps {
 
 export default function ObstaclesPlayer({ obstacle }: ObstaclesPlayerProps) {
     const { socket } = useSocketContext();
-    const [myAnswer, setMyAnswer] = React.useState("");
-    const [isSubmitted, setIsSubmitted] = React.useState(false);
-    
-    // Get Persistent Player ID
-    const [playerId, setPlayerId] = React.useState<string>("");
+    const [myAnswer, setMyAnswer] = useState("");
+    const [isSubmitted, setIsSubmitted] = useState(false);
+    const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+    const [confirmConfig, setConfirmConfig] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        onConfirm: () => void;
+        type?: 'info' | 'warning' | 'danger' | 'success';
+    }>({
+        isOpen: false,
+        title: "",
+        message: "",
+        onConfirm: () => {},
+    });
 
-    React.useEffect(() => {
-        const storedId = localStorage.getItem("olympia_player_id");
-        if (storedId) setPlayerId(storedId);
-        else if (socket?.id) setPlayerId(socket.id);
-    }, [socket?.id]);
+    // Get Persistent Player ID - Initialize lazily only once
+    const [playerId] = useState<string>(() => {
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem("olympia_player_id") || "";
+        }
+        return "";
+    });
 
-    // Reset answer
-    React.useEffect(() => {
-        setMyAnswer("");
-        setIsSubmitted(false);
+    // Reset answer when question changes
+    // Using a ref to track previous row/status effectively avoids the "setState in useEffect" trap if we only trigger on diff
+    useEffect(() => {
+        const t = setTimeout(() => {
+            setMyAnswer("");
+            setIsSubmitted(false);
+        }, 0);
+        return () => clearTimeout(t);
     }, [obstacle.currentRowIndex, obstacle.status]);
 
     const handleSubmitAnswer = (e?: React.FormEvent) => {
@@ -48,25 +66,49 @@ export default function ObstaclesPlayer({ obstacle }: ObstaclesPlayerProps) {
 
 
     // Animation Logic
-    const [showCorrectAnim, setShowCorrectAnim] = React.useState(false);
-    const prevGradingRef = React.useRef<string | undefined>(undefined);
+    const [showCorrectAnim, setShowCorrectAnim] = useState(false);
     
-    React.useEffect(() => {
-        if (grading === 'CORRECT' && prevGradingRef.current !== 'CORRECT') {
-             setShowCorrectAnim(true);
+    useEffect(() => {
+        if (grading === 'CORRECT') {
+             const t = setTimeout(() => {
+                 setShowCorrectAnim(true);
+             }, 0);
              const timer = setTimeout(() => setShowCorrectAnim(false), 3000);
-             return () => clearTimeout(timer);
+             return () => { clearTimeout(t); clearTimeout(timer); };
         }
-        prevGradingRef.current = grading;
     }, [grading]);
 
     if (!obstacle) return null;
+
+    const commonUI = (
+        <>
+            <AnimatePresence>
+                {toast && (
+                    <Toast
+                        message={toast.message}
+                        type={toast.type}
+                        onClose={() => setToast(null)}
+                    />
+                )}
+            </AnimatePresence>
+
+            <ConfirmModal
+                isOpen={confirmConfig.isOpen}
+                title={confirmConfig.title}
+                message={confirmConfig.message}
+                onConfirm={confirmConfig.onConfirm}
+                onCancel={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+                type={confirmConfig.type}
+            />
+        </>
+    );
 
     // PLAYER FINISHED VIEW
     if (obstacle.status === 'FINISHED') {
         return (
             <GameRoundContainer className="text-amber-500" fullWidth>
                 <MiniRankingBoard />
+                {commonUI}
                 <div className="flex flex-col items-center justify-center h-full w-full gap-8 p-8 animate-fade-in relative z-10">
                      <div className="text-center">
                          <div className="inline-block px-4 py-1 rounded-full bg-slate-800 text-slate-400 text-xs font-bold uppercase tracking-widest border border-slate-700 mb-4">
@@ -95,6 +137,7 @@ export default function ObstaclesPlayer({ obstacle }: ObstaclesPlayerProps) {
     return (
         <GameRoundContainer className="text-amber-500" fullWidth>
             <MiniRankingBoard />
+            {commonUI}
             
             <AnimatePresence>
                 {showCorrectAnim && (
@@ -199,7 +242,7 @@ export default function ObstaclesPlayer({ obstacle }: ObstaclesPlayerProps) {
                                 const length = obstacle.rowLengths?.[idx] || 0;
                                 const content = obstacle.rowContents?.[idx] || "";
                                 const isCurrent = obstacle.currentRowIndex === idx;
-                                const isDismissed = !content && obstacle.rowResults && obstacle.rowResults[idx];
+                                const isDismissed = !content && obstacle.rowResults && obstacle.rowResults[idx]?.isSolved === false && obstacle.rowResults[idx]?.answer === ""; // Adjusted to match state
 
                                 return (
                                     <div key={idx} className={`
@@ -367,9 +410,15 @@ export default function ObstaclesPlayer({ obstacle }: ObstaclesPlayerProps) {
             <div className="fixed bottom-8 right-8 z-50">
                     <button
                         onClick={() => {
-                            if (confirm("XÁC NHẬN TRẢ LỜI CHƯỚNG NGẠI VẬT? \n(Nếu sai bạn sẽ bị loại khỏi phần thi này)")) {
-                                socket?.emit('player_obstacle_buzz', { playerId: playerId || socket?.id });
-                            }
+                            setConfirmConfig({
+                                isOpen: true,
+                                title: 'Trả lời CNV',
+                                message: "XÁC NHẬN TRẢ LỜI CHƯỚNG NGẠI VẬT? \n(Nếu sai bạn sẽ bị loại khỏi phần thi này)",
+                                onConfirm: () => {
+                                    socket?.emit('player_obstacle_buzz', { playerId: playerId || socket?.id });
+                                },
+                                type: 'danger'
+                            });
                         }} 
                         disabled={obstacle.cnvLocked || isEliminated}
                         className={`

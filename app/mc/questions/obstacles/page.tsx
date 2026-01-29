@@ -4,20 +4,15 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { Save, Image as ImageIcon, Upload } from 'lucide-react';
 import MCGuard from '@/components/auth/MCGuard';
+import { Toast, ToastType } from "@/components/ui/Toast";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { AnimatePresence } from "framer-motion";
 
 interface Row {
     question: string;
     answer: string;
 }
 
-interface ObstacleSet {
-    _id: string;
-    name: string;
-    image: string;
-    finalCNV: string;
-    rows: Row[];
-    createdAt?: string;
-}
 
 export default function ObstacleQuestionsPage() {
     const [loading, setLoading] = useState(false);
@@ -33,6 +28,20 @@ export default function ObstacleQuestionsPage() {
         image: '',
         finalCNV: '',
         rows: Array.from({ length: 4 }, () => ({ question: '', answer: '' }))
+    });
+
+    const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+    const [confirmConfig, setConfirmConfig] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        onConfirm: () => void;
+        type?: 'info' | 'warning' | 'danger' | 'success';
+    }>({
+        isOpen: false,
+        title: "",
+        message: "",
+        onConfirm: () => {},
     });
 
     // Singleton Fetch: Get the current set
@@ -81,19 +90,25 @@ export default function ObstacleQuestionsPage() {
             if (json.success) {
                 setFormData(prev => ({ ...prev, image: json.url }));
             } else {
-                alert("Upload failed: " + json.error);
+                setToast({ message: "Upload failed: " + json.error, type: 'error' });
             }
         } catch (err) {
             console.error(err);
-            alert("Upload error");
+            setToast({ message: "Upload error", type: 'error' });
         } finally {
             setUploading(false);
         }
     };
 
     const handleSubmit = async () => {
-        if (!formData.name || !formData.image || !formData.finalCNV) return alert("Vui lòng nhập đủ thông tin chung!");
-        if (formData.rows.some(r => !r.question || !r.answer)) return alert("Vui lòng nhập đủ 4 hàng ngang!");
+        if (!formData.name || !formData.image || !formData.finalCNV) {
+            setToast({ message: "Vui lòng nhập đủ thông tin chung!", type: 'warning' });
+            return;
+        }
+        if (formData.rows.some(r => !r.question || !r.answer)) {
+            setToast({ message: "Vui lòng nhập đủ 4 hàng ngang!", type: 'warning' });
+            return;
+        }
 
         setLoading(true);
         // Always POST to upsert singleton
@@ -104,10 +119,10 @@ export default function ObstacleQuestionsPage() {
         });
 
         if (res.ok) {
-            alert("Lưu thành công!");
+            setToast({ message: "Lưu thành công!", type: 'success' });
             // No need to reset, keep editing the singleton
         } else {
-            alert("Lỗi khi lưu!");
+            setToast({ message: "Lỗi khi lưu!", type: 'error' });
         }
         setLoading(false);
     };
@@ -115,6 +130,24 @@ export default function ObstacleQuestionsPage() {
     return (
         <MCGuard>
             <div className="min-h-screen bg-slate-950 text-slate-100 p-8">
+                <AnimatePresence>
+                    {toast && (
+                        <Toast
+                            message={toast.message}
+                            type={toast.type}
+                            onClose={() => setToast(null)}
+                        />
+                    )}
+                </AnimatePresence>
+
+                <ConfirmModal
+                    isOpen={confirmConfig.isOpen}
+                    title={confirmConfig.title}
+                    message={confirmConfig.message}
+                    onConfirm={confirmConfig.onConfirm}
+                    onCancel={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+                    type={confirmConfig.type}
+                />
                 <div className="max-w-6xl mx-auto">
                     <header className="flex justify-between items-center mb-8 pb-4 border-b border-slate-800">
                         <div>

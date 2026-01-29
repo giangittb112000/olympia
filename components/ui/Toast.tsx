@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { AlertCircle, CheckCircle, XCircle } from 'lucide-react';
 
-export type ToastType = 'success' | 'error' | 'info';
+export type ToastType = 'success' | 'error' | 'info' | 'warning';
 
 export interface ToastProps {
   message: string;
@@ -21,13 +21,15 @@ export function Toast({ message, type, duration = 3000, onClose }: ToastProps) {
   const icons = {
     success: <CheckCircle className="text-green-500" />,
     error: <XCircle className="text-red-500" />,
-    info: <AlertCircle className="text-blue-500" />
+    info: <AlertCircle className="text-blue-500" />,
+    warning: <AlertCircle className="text-amber-500" />
   };
 
   const colors = {
     success: 'bg-green-900/90 border-green-500',
     error: 'bg-red-900/90 border-red-500',
-    info: 'bg-blue-900/90 border-blue-500'
+    info: 'bg-blue-900/90 border-blue-500',
+    warning: 'bg-amber-900/90 border-amber-500'
   };
 
   return (

@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import MCGuard from "@/components/auth/MCGuard";
 import Link from "next/link"; // Correct Next 14 Import
+import { Toast, ToastType } from "@/components/ui/Toast";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 
 interface Player {
   _id: string;
@@ -24,6 +26,20 @@ export default function MCUsersPage() {
   const [editName, setEditName] = useState("");
   const [editPassword, setEditPassword] = useState("");
   const [editLoading, setEditLoading] = useState(false);
+
+  const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+  const [confirmConfig, setConfirmConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    type?: 'info' | 'warning' | 'danger' | 'success';
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+  });
 
   // Fetch players on mount
   useEffect(() => {
@@ -62,7 +78,7 @@ export default function MCUsersPage() {
         setNewPlayerName("");
         setNewPlayerPassword("");
       } else {
-        alert("Lỗi: " + data.error);
+        setToast({ message: "Lỗi: " + data.error, type: 'error' });
       }
     } catch (error) {
       console.error("Failed to add player", error);
@@ -108,7 +124,7 @@ export default function MCUsersPage() {
             setEditName("");
             setEditPassword("");
         } else {
-            alert("Lỗi: " + data.error);
+            setToast({ message: "Lỗi: " + data.error, type: 'error' });
         }
     } catch (error) {
         console.error("Failed to update player", error);
@@ -118,22 +134,49 @@ export default function MCUsersPage() {
   };
 
   const handleDeletePlayer = async (id: string) => {
-    if (!confirm("Bạn có chắc chắn muốn xóa người chơi này?")) return;
-
-    try {
-      const res = await fetch(`/api/players/${id}`, { method: "DELETE" });
-      const data = await res.json();
-      if (data.success) {
-        setPlayers((prev) => prev.filter((p) => p._id !== id));
-      }
-    } catch (error) {
-      console.error("Failed to delete player", error);
-    }
+    setConfirmConfig({
+        isOpen: true,
+        title: "Xóa người chơi",
+        message: "Bạn có chắc chắn muốn xóa người chơi này?",
+        onConfirm: async () => {
+            try {
+                const res = await fetch(`/api/players/${id}`, { method: "DELETE" });
+                const data = await res.json();
+                if (data.success) {
+                    setPlayers((prev) => prev.filter((p) => p._id !== id));
+                    setToast({ message: "Đã xóa người chơi", type: 'success' });
+                }
+            } catch (error) {
+                console.error("Failed to delete player", error);
+                setToast({ message: "Lỗi khi xóa người chơi", type: 'error' });
+            }
+        },
+        type: 'danger'
+    });
   };
 
   return (
     <MCGuard>
         <div className="min-h-screen bg-slate-950 text-slate-100 p-8">
+            <AnimatePresence>
+                {toast && (
+                    <Toast
+                        message={toast.message}
+                        type={toast.type}
+                        onClose={() => setToast(null)}
+                    />
+                )}
+            </AnimatePresence>
+
+            <ConfirmModal
+                isOpen={confirmConfig.isOpen}
+                title={confirmConfig.title}
+                message={confirmConfig.message}
+                onConfirm={confirmConfig.onConfirm}
+                onCancel={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+                type={confirmConfig.type}
+            />
+
             <header className="mb-12 border-b border-amber-900/50 pb-6 flex justify-between items-center">
                 <div>
                   <h1 className="text-4xl font-bold text-amber-500 font-display">QUẢN LÝ USER</h1>

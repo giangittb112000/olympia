@@ -4,6 +4,7 @@ import { Plus, Trash2, Save, AlertCircle } from "lucide-react";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { Toast, ToastType } from "@/components/ui/Toast";
 import { AnimatePresence } from "framer-motion";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 
 interface Question {
   _id?: string;
@@ -23,6 +24,18 @@ export default function FinishLineBankPage() {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+  const [confirmConfig, setConfirmConfig] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    type?: 'info' | 'warning' | 'danger' | 'success';
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+  });
 
   // Load existing bank
   useEffect(() => {
@@ -192,15 +205,22 @@ export default function FinishLineBankPage() {
   };
 
   const deleteQuestion = (category: "10pt" | "20pt" | "30pt", index: number) => {
-    if (!confirm("Xóa câu hỏi này?")) return;
-
-    if (category === "10pt") {
-      setQuestions10pt(questions10pt.filter((_, i) => i !== index));
-    } else if (category === "20pt") {
-      setQuestions20pt(questions20pt.filter((_, i) => i !== index));
-    } else {
-      setQuestions30pt(questions30pt.filter((_, i) => i !== index));
-    }
+    setConfirmConfig({
+        isOpen: true,
+        title: "Xóa câu hỏi",
+        message: "Xóa câu hỏi này?",
+        onConfirm: () => {
+            if (category === "10pt") {
+              setQuestions10pt(questions10pt.filter((_, i) => i !== index));
+            } else if (category === "20pt") {
+              setQuestions20pt(questions20pt.filter((_, i) => i !== index));
+            } else {
+              setQuestions30pt(questions30pt.filter((_, i) => i !== index));
+            }
+            setToast({ message: "Đã xóa câu hỏi", type: "info" });
+        },
+        type: 'danger'
+    });
   };
 
 
@@ -225,6 +245,15 @@ export default function FinishLineBankPage() {
       <AnimatePresence>
         {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       </AnimatePresence>
+
+      <ConfirmModal
+        isOpen={confirmConfig.isOpen}
+        title={confirmConfig.title}
+        message={confirmConfig.message}
+        onConfirm={confirmConfig.onConfirm}
+        onCancel={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+        type={confirmConfig.type}
+      />
 
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
