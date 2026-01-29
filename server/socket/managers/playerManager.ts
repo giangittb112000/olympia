@@ -42,10 +42,7 @@ export async function handlePlayerConnection(io: Server, socket: Socket, playerI
       import('../../game/GameManager').then(gm => gm.default.handlePlayerBuzz(playerId, data.round));
   });
 
-  socket.on('player_answer_acceleration', (data) => {
-      // data: { answer: string, time: number }
-      import('../../game/GameManager').then(gm => gm.default.handlePlayerAnswer(playerId, 'ACCELERATION', data));
-  });
+
 
   socket.on('disconnect', async () => {
     const deleted = await Session.deleteOne({ socketId: socket.id });
