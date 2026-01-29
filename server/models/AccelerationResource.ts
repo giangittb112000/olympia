@@ -2,8 +2,8 @@ import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IAccelerationQuestion {
   questionNumber: 1 | 2 | 3 | 4;
-  mediaType: 'VIDEO' | 'IMAGE';
-  mediaUrl: string;
+  mediaType?: 'VIDEO' | 'IMAGE';
+  mediaUrl?: string;
   questionText: string;
   questionDescription?: string;
   timeLimit: number;
@@ -26,12 +26,12 @@ const AccelerationQuestionSchema = new Schema({
   },
   mediaType: {
     type: String,
-    required: true,
+    required: false,
     enum: ['VIDEO', 'IMAGE']
   },
   mediaUrl: {
     type: String,
-    required: true
+    required: false
   },
   questionText: {
     type: String,

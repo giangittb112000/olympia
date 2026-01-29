@@ -6,7 +6,7 @@ import MediaPlayer from './MediaPlayer';
 import { AccelerationState } from '@/server/game/GameConstants';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SendHorizonal, CheckCircle2, XCircle } from 'lucide-react';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+
 interface AccelerationPlayerProps {
   acceleration: AccelerationState;
 }
@@ -118,19 +118,15 @@ function AccelerationPlayerContent({ acceleration }: AccelerationPlayerProps) {
                   </div>
 
 
-                  {/* Media */}
-                  <div className="flex-1 bg-black rounded-xl overflow-hidden shadow-2xl relative">
-                    {!acceleration.mediaUrl ? (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <LoadingSpinner />
-                      </div>
-                    ) : (
-                      <MediaPlayer
-                        mediaType={acceleration.mediaType!}
-                        mediaUrl={acceleration.mediaUrl}
-                      />
-                    )}
-                  </div>
+                  {/* Media - Only show if exists */}
+                  {acceleration.mediaUrl && (
+                    <div className="flex-1 bg-black rounded-xl overflow-hidden shadow-2xl relative">
+                        <MediaPlayer
+                          mediaType={acceleration.mediaType!}
+                          mediaUrl={acceleration.mediaUrl}
+                        />
+                    </div>
+                  )}
                </motion.div>
              </AnimatePresence>
         </div>

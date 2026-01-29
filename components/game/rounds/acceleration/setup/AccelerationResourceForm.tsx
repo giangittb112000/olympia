@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { Video, Image as ImageIcon, Save, Loader2 } from 'lucide-react';
+import { Video, Image as ImageIcon, Save, Loader2, Trash2 } from 'lucide-react';
 import { Toast, ToastType } from '@/components/ui/Toast';
 import { AnimatePresence } from 'framer-motion';
 
@@ -85,9 +85,9 @@ export default function AccelerationResourceForm() {
   const handleSave = async () => {
     // Validate
     for (const q of questions) {
-      if (!q.mediaUrl || !q.questionText.trim()) {
+      if (!q.questionText.trim()) {
         setToast({ 
-          message: `Câu hỏi ${q.questionNumber}: Vui lòng upload media và nhập nội dung câu hỏi.`, 
+          message: `Câu hỏi ${q.questionNumber}: Vui lòng nhập nội dung câu hỏi.`, 
           type: 'error' 
         });
         return;
@@ -160,7 +160,7 @@ export default function AccelerationResourceForm() {
           {/* Upload Media */}
           <div>
             <label className="block text-sm font-bold text-slate-300 mb-2">
-              Upload Media (Video hoặc Hình ảnh)
+              Upload Media (Tùy chọn)
             </label>
             <input
               type="file"
@@ -170,7 +170,16 @@ export default function AccelerationResourceForm() {
               disabled={uploading}
             />
             {q.mediaUrl && (
-              <p className="text-xs text-green-400 mt-2">✅ Uploaded: {q.mediaUrl.slice(0, 50)}...</p>
+              <div className="flex items-center gap-4 mt-2">
+                <p className="text-xs text-green-400">✅ Uploaded: {q.mediaUrl.slice(0, 50)}...</p>
+                <button
+                  onClick={() => updateQuestion(idx, { mediaUrl: '' })}
+                  className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
+                  title="Xóa media"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
             )}
           </div>
 

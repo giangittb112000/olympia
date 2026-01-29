@@ -100,42 +100,18 @@ function AccelerationMonitorContent({ acceleration }: AccelerationMonitorProps) 
         <div className="flex-1 grid grid-cols-12 gap-8 min-h-0">
           {/* Left: Media & Question Content */}
           <div className="col-span-8 flex flex-col gap-6 min-h-0">
-            {/* Large Media Player Frame */}
-            <div className="flex-[3] bg-black rounded-3xl overflow-hidden shadow-2xl relative border-4 border-slate-900 ring-1 ring-white/10">
-              {acceleration.mediaUrl ? (
-                <MediaPlayer
-                  mediaType={acceleration.mediaType!}
-                  mediaUrl={acceleration.mediaUrl!}
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-slate-900 to-black">
-                   <div className="text-center opacity-50">
-                      <div className="w-32 h-32 border-4 border-dashed border-slate-800 rounded-full flex items-center justify-center mx-auto mb-6 animate-[spin_10s_linear_infinite]">
-                         <span className="text-5xl">🎬</span>
-                      </div>
-                      <p className="text-slate-600 font-black text-2xl uppercase tracking-widest">Visual Content Placeholder</p>
-                   </div>
-                </div>
-              )}
-              {/* Corner Accents */}
-              <div className="absolute top-0 left-0 w-16 h-16 border-t-4 border-l-4 border-amber-500/50 rounded-tl-xl pointer-events-none" />
-              <div className="absolute top-0 right-0 w-16 h-16 border-t-4 border-r-4 border-amber-500/50 rounded-tr-xl pointer-events-none" />
-              <div className="absolute bottom-0 left-0 w-16 h-16 border-b-4 border-l-4 border-amber-500/50 rounded-bl-xl pointer-events-none" />
-              <div className="absolute bottom-0 right-0 w-16 h-16 border-b-4 border-r-4 border-amber-500/50 rounded-br-xl pointer-events-none" />
-            </div>
-
             {/* Cinematic Question Box */}
-            <div className="flex-1 bg-black/60 backdrop-blur-xl border border-white/10 rounded-3xl p-8 relative overflow-hidden group">
+            <div className="flex-1 bg-black/60 backdrop-blur-xl border border-white/10 rounded-3xl p-6 relative overflow-hidden group flex flex-col justify-center">
               <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-amber-500 via-purple-500 to-blue-500" />
               <div className="absolute -right-20 -bottom-20 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl group-hover:bg-amber-500/20 transition-all duration-1000" />
               
               <div className="relative z-10 flex flex-col justify-center h-full">
                 <div className="flex items-center gap-4 mb-4">
                    <div className="bg-white/10 text-white text-[10px] font-black uppercase px-3 py-1 rounded-full border border-white/5 tracking-widest">
-                      Question Content
+                      Câu hỏi
                    </div>
                 </div>
-                <p className="text-3xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white to-slate-400 leading-tight drop-shadow-lg">
+                <p className={`font-black text-transparent bg-clip-text bg-gradient-to-br from-white to-slate-400 leading-tight drop-shadow-lg ${acceleration.mediaUrl ? 'text-3xl md:text-5xl' : 'text-5xl md:text-5xl'}`}>
                   {acceleration.questionText}
                 </p>
                 {acceleration.questionDescription && (
@@ -146,6 +122,20 @@ function AccelerationMonitorContent({ acceleration }: AccelerationMonitorProps) 
                 )}
               </div>
             </div>
+            {/* Large Media Player Frame - Only if media exists */}
+            {acceleration.mediaUrl && (
+              <div className="flex-[3] bg-black rounded-3xl overflow-hidden shadow-2xl relative border-4 border-slate-900 ring-1 ring-white/10">
+                  <MediaPlayer
+                    mediaType={acceleration.mediaType!}
+                    mediaUrl={acceleration.mediaUrl!}
+                  />
+                {/* Corner Accents */}
+                <div className="absolute top-0 left-0 w-16 h-16 border-t-4 border-l-4 border-amber-500/50 rounded-tl-xl pointer-events-none" />
+                <div className="absolute top-0 right-0 w-16 h-16 border-t-4 border-r-4 border-amber-500/50 rounded-tr-xl pointer-events-none" />
+                <div className="absolute bottom-0 left-0 w-16 h-16 border-b-4 border-l-4 border-amber-500/50 rounded-bl-xl pointer-events-none" />
+                <div className="absolute bottom-0 right-0 w-16 h-16 border-b-4 border-r-4 border-amber-500/50 rounded-br-xl pointer-events-none" />
+              </div>
+            )}
           </div>
 
           {/* Right: Answer Feed */}
@@ -160,10 +150,10 @@ function AccelerationMonitorContent({ acceleration }: AccelerationMonitorProps) 
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75"></span>
                     <span className="relative inline-flex rounded-full h-3 w-3 bg-gradient-to-br from-red-500 to-orange-500 text-white"></span>
                   </span>
-                  LIVE FEED
+                  Câu trả lời
                 </h3>
                 <div className="flex items-center gap-2 bg-white/5 px-4 py-2 rounded-lg border border-white/10 shadow-inner">
-                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Responses</span>
+                  <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Số câu trả lời</span>
                   <span className="text-lg font-black text-amber-500 leading-none">{answers.length}</span>
                 </div>
               </div>

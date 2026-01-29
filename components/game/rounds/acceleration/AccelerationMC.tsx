@@ -8,7 +8,7 @@ import { AccelerationState } from '@/server/game/GameConstants';
 import { Play, SkipForward, Check, X, RotateCcw, Trophy, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Toast, ToastType } from '@/components/ui/Toast';
-import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
+
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 
 interface AccelerationMCProps {
@@ -162,7 +162,7 @@ export default function AccelerationMC({ acceleration }: AccelerationMCProps) {
       />
 
       {/* Header */}
-      <div className="flex justify-between items-center mb-4">
+      <div className="flex justify-between items-center mb-4 w-full mb-[30px]">
         <div className="flex items-center gap-4">
           <button
             onClick={() => {
@@ -195,7 +195,7 @@ export default function AccelerationMC({ acceleration }: AccelerationMCProps) {
         </button>
       </div>
 
-      <div className="h-[calc(100%-80px)] overflow-hidden">
+      <div className="h-[calc(100%-80px)] w-full">
         <AnimatePresence mode="wait">
           <motion.div
             key={acceleration.questionNumber}
@@ -206,24 +206,20 @@ export default function AccelerationMC({ acceleration }: AccelerationMCProps) {
             className="grid grid-cols-12 gap-6 h-full"
           >
             {/* Left: Media */}
-            <div className="col-span-5 bg-slate-800 rounded-xl p-4 flex flex-col">
-              <h3 className="text-lg font-bold text-white mb-2">Media</h3>
-              <div className="flex-1 bg-black rounded-lg overflow-hidden relative">
-                {!acceleration.mediaUrl ? (
-                   <div className="w-full h-full flex items-center justify-center">
-                     <LoadingSpinner />
-                   </div>
-                ) : (
-                  <MediaPlayer
-                    mediaType={acceleration.mediaType!}
-                    mediaUrl={acceleration.mediaUrl}
-                  />
-                )}
+            {acceleration.mediaUrl && (
+              <div className="col-span-5 bg-slate-800 rounded-xl p-4 flex flex-col">
+                <h3 className="text-lg font-bold text-white mb-2">Media</h3>
+                <div className="flex-1 bg-black rounded-lg overflow-hidden relative">
+                    <MediaPlayer
+                      mediaType={acceleration.mediaType!}
+                      mediaUrl={acceleration.mediaUrl}
+                    />
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Right: Controls + Answers */}
-            <div className="col-span-7 flex flex-col gap-4">
+            <div className={`${acceleration.mediaUrl ? 'col-span-7' : 'col-span-12'} flex flex-col gap-4`}>
               {/* Question Text */}
               <div className="bg-slate-800 rounded-xl p-6">
                 <h3 className="text-sm text-slate-400 mb-2">NỘI DUNG CÂU HỎI</h3>
